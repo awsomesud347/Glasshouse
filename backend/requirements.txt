@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]
+asyncpg
+argon2-cffi
+python-jose[cryptography]
+pydantic[email]
+python-dotenv
+prometheus-fastapi-instrumentator
