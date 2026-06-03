@@ -9,7 +9,7 @@ import json
 
 router = APIRouter(prefix="/vault", tags=["vault"])
 
-@router.get("/", , response_model=VaultResponse)
+@router.get("/", response_model=VaultResponse)
 async def get_vault(email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
@@ -22,4 +22,3 @@ async def get_vault(email: str = Depends(verify_jwt), db: AsyncSession = Depends
     "iv": user.iv,
     "version": user.vault_version
     }
-
