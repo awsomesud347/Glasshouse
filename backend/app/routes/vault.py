@@ -59,3 +59,23 @@ async def vault_export(email: str = Depends(verify_jwt), db: AsyncSession = Depe
         "salt": user.salt,
         "kdf_params": json.loads(user.kdf_params)
     }
+
+    # Write DELETE /account
+
+@router.delete("/account", )
+async def account_delete(email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not Found")
+
+    await db.delete(user)
+    await db.commit()
+
+    return {
+        "status" : "ok"
+    }
+
+
+    # figure out what to write in main.py and if the central router has been initialized yet or not?
