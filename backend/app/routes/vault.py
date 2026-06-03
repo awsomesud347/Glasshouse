@@ -44,3 +44,18 @@ async def vault_update(req: VaultUpdateRequest, email: str = Depends(verify_jwt)
         "iv": user.iv,
         "version": user.vault_version
     }
+
+@router.get("/export", response_model=ExportResponse)
+async def vault_export(email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User Not Found")
+
+    return {
+        "vault_blob": user.vault_blob,
+        "iv": user.iv,
+        "salt": user.salt,
+        "kdf_params": json.loads(user.kdf_params)
+    }
