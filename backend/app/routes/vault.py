@@ -60,8 +60,6 @@ async def vault_export(email: str = Depends(verify_jwt), db: AsyncSession = Depe
         "kdf_params": json.loads(user.kdf_params)
     }
 
-    # Write DELETE /account
-
 @router.delete("/account", )
 async def account_delete(email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == email))
