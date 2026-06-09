@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import engine, Base
 from app.routes import auth, vault
@@ -14,6 +15,14 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Zero Knowledge Vault", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 Instrumentator().instrument(app).expose(app)
 

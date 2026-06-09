@@ -13,6 +13,7 @@ class RegisterCompleteRequest(BaseModel):
     auth_key: str
     vault_blob: str
     iv: str
+    salt: str
 
 class LoginRequest(BaseModel):
     email: EmailStr
