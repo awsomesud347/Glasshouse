@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
@@ -8,8 +8,11 @@ from app.schemas import (
     RegisterCompleteRequest, LoginRequest, LoginResponse
 )
 from app.services.crypto import hash_auth_key, verify_auth_key, create_token
+from app.services.limiter import limiter
+from fastapi import Request
 import secrets
 import json
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -21,7 +24,8 @@ KDF_PARAMS = {
 }
 
 @router.post("/register/init", response_model=RegisterInitResponse)
-async def register_init(req: RegisterInitRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("100/minute")
+async def register_init(request: Request, req: RegisterInitRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == req.email))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email already registered")
@@ -30,7 +34,8 @@ async def register_init(req: RegisterInitRequest, db: AsyncSession = Depends(get
     return {"salt": salt, "kdf_params": KDF_PARAMS}
 
 @router.post("/register/complete")
-async def register_complete(req: RegisterCompleteRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("100/minute")
+async def register_complete(request: Request, req: RegisterCompleteRequest, db: AsyncSession = Depends(get_db)):
     print(f"REGISTER auth_key: {req.auth_key[:20]}...")
     result = await db.execute(select(User).where(User.email == req.email))
     if result.scalar_one_or_none():
@@ -51,7 +56,8 @@ async def register_complete(req: RegisterCompleteRequest, db: AsyncSession = Dep
     return {"status": "ok"}
 
 @router.get("/salt")
-async def get_salt(email: str, db: AsyncSession = Depends(get_db)):
+@limiter.limit("100/minute")
+async def get_salt(request: Request, email: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if not user:
@@ -59,7 +65,8 @@ async def get_salt(email: str, db: AsyncSession = Depends(get_db)):
     return {"salt": user.salt, "kdf_params": json.loads(user.kdf_params)}
 
 @router.post("/login", response_model=LoginResponse)
-async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def login(request: Request, req: LoginRequest, db: AsyncSession = Depends(get_db)):
     print(f"LOGIN auth_key: {req.auth_key[:20]}...")
     result = await db.execute(select(User).where(User.email == req.email))
     user = result.scalar_one_or_none()

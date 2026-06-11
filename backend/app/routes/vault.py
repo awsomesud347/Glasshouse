@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
@@ -10,7 +10,7 @@ import json
 router = APIRouter(prefix="/vault", tags=["vault"])
 
 @router.get("/", response_model=VaultResponse)
-async def get_vault(email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
+async def get_vault(request: Request, email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
@@ -24,7 +24,7 @@ async def get_vault(email: str = Depends(verify_jwt), db: AsyncSession = Depends
     }
 
 @router.put("/", response_model=VaultResponse)
-async def vault_update(req: VaultUpdateRequest, email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
+async def vault_update(request: Request, req: VaultUpdateRequest, email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
@@ -46,7 +46,7 @@ async def vault_update(req: VaultUpdateRequest, email: str = Depends(verify_jwt)
     }
 
 @router.get("/export", response_model=ExportResponse)
-async def vault_export(email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
+async def vault_export(request: Request, email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
@@ -61,7 +61,7 @@ async def vault_export(email: str = Depends(verify_jwt), db: AsyncSession = Depe
     }
 
 @router.delete("/account", )
-async def account_delete(email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
+async def account_delete(request: Request, email: str = Depends(verify_jwt), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 

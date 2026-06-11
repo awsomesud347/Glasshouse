@@ -5,6 +5,10 @@ from app.database import engine, Base
 from app.routes import auth, vault
 from prometheus_fastapi_instrumentator import Instrumentator
 from dotenv import load_dotenv
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.services.limiter import limiter
+
 
 load_dotenv()
 
@@ -15,6 +19,9 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Zero Knowledge Vault", lifespan=lifespan)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
