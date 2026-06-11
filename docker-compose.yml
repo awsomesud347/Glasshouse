@@ -5,10 +5,26 @@ services:
       POSTGRES_DB: vaultdb
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: localdev
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d vaultdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://admin:localdev@db/vaultdb
+      PEPPER: localdevpepperchangethisinprod
+      JWT_SECRET: localdevjwtsecretchangethisinprod
+      ENV: development
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:
