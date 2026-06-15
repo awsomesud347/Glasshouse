@@ -68,7 +68,7 @@ resource "aws_secretsmanager_secret" "db_url" {
 
 resource "aws_secretsmanager_secret_version" "db_url" {
   secret_id     = aws_secretsmanager_secret.db_url.id
-  secret_string = "postgresql+asyncpg://vaultadmin:${var.db_password}@${var.rds_endpoint}/${var.rds_db_name}"
+  secret_string = "postgresql+asyncpg://vaultadmin:${var.db_password}@${var.rds_endpoint}/${var.rds_db_name}?ssl=require"
 }
 
 # Outputs — EC2 needs these secret ARNs for IAM policy

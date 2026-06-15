@@ -33,7 +33,7 @@ resource "aws_db_instance" "main" {
   allocated_storage = 20               # GB, minimum for free tier
 
   db_name  = "vaultdb"
-  username = "vauladmin"
+  username = "vaultadmin"
   password = var.db_password
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
