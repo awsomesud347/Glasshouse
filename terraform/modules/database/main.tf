@@ -33,7 +33,7 @@ resource "aws_db_instance" "main" {
   allocated_storage = 20               # GB, minimum for free tier
 
   db_name  = "vaultdb"
-  username = "admin"
+  username = "vauladmin"
   password = var.db_password
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
@@ -44,7 +44,7 @@ resource "aws_db_instance" "main" {
   publicly_accessible = false    # private subnet, no public access ever
 
   # backups
-  backup_retention_period = 7    # keep 7 days of backups
+  backup_retention_period = 0    # Free tier allows 0
   backup_window           = "03:00-04:00"
 
   # don't delete the DB if terraform destroy is run accidentally
