@@ -1,0 +1,8 @@
+services:
+  api:
+    image: 111169964335.dkr.ecr.us-east-1.amazonaws.com/vault-api:latest
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
