@@ -31,3 +31,9 @@ variable "key_name" {
   description = "Name of EC2 key pair for SSH access"
   type        = string
 }
+
+variable "db_backup_retention_days" {
+  description = "RDS backup retention in days. Free-tier capped; production would use 7-35."
+  type        = number
+  default     = 1
+}

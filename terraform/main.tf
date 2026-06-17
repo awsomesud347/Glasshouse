@@ -28,6 +28,7 @@ module "database" {
   private_subnet_ids = module.networking.private_subnet_ids
   rds_sg_id          = module.networking.rds_sg_id
   db_password        = var.db_password
+  db_backup_retention_days = var.db_backup_retention_days
 }
 
 module "secrets" {

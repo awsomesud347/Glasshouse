@@ -14,6 +14,12 @@ variable "db_password" {
   sensitive   = true
 }
 
+variable "db_backup_retention_days" {
+  description = "RDS automated backup retention in days. Free-tier capped; production would use 7-35."
+  type        = number
+  default     = 1
+}
+
 # DB subnet group — assigns subnets to RDS
 resource "aws_db_subnet_group" "main" {
   name       = "vault-db-subnet-group"
@@ -44,7 +50,7 @@ resource "aws_db_instance" "main" {
   publicly_accessible = false    # private subnet, no public access ever
 
   # backups
-  backup_retention_period = 0    # Free tier allows 0
+  backup_retention_period = var.db_backup_retention_days    # Free tier limited
   backup_window           = "03:00-04:00"
 
   # don't delete the DB if terraform destroy is run accidentally
