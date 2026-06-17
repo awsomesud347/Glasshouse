@@ -6,9 +6,7 @@ function hexToBytes(hex) {
 }
 
 export async function deriveKeys(masterPassword, saltHex) {
-    console.log("ENTERED deriveKeys, saltHex =", saltHex)
     const saltBytes = hexToBytes(saltHex)
-    console.log("saltBytes computed:", saltBytes)
 
     const rootKeyBytes = await argon2id({
         password: masterPassword,
