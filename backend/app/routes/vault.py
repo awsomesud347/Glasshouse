@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import User
 from app.schemas import VaultResponse, VaultUpdateRequest, ExportResponse
 from app.services.crypto import verify_jwt
+from app.services.metrics import vault_operations
 import json
 
 router = APIRouter(prefix="/vault", tags=["vault"])
@@ -38,7 +39,7 @@ async def vault_update(request: Request, req: VaultUpdateRequest, email: str = D
     user.iv = req.iv
     user.vault_version += 1
     await db.commit()
-
+    vault_operations.labels(operation="write", result="success").inc()
     return {
         "vault_blob": user.vault_blob,
         "iv": user.iv,

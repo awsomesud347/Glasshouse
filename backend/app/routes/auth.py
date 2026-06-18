@@ -10,9 +10,9 @@ from app.schemas import (
 from app.services.crypto import hash_auth_key, verify_auth_key, create_token
 from app.services.limiter import limiter
 from fastapi import Request
+from app.services.metrics import login_attempts, registrations
 import secrets
 import json
-
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -53,6 +53,7 @@ async def register_complete(request: Request, req: RegisterCompleteRequest, db: 
     )
     db.add(user)
     await db.commit()
+    registrations.inc()
     return {"status": "ok"}
 
 @router.get("/salt")
@@ -72,6 +73,8 @@ async def login(request: Request, req: LoginRequest, db: AsyncSession = Depends(
 
     if not user or not await verify_auth_key(user.verifier, req.auth_key):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    login_attempts.labels(result="success").inc()
 
     token = await create_token(user.email)
     return {
