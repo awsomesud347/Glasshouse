@@ -35,7 +35,7 @@
       "id": 3,
       "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
       "pluginVersion": "10.0.0",
-      "targets": [{ "expr": "100 * sum(rate(http_requests_total{job=\"glasshouse-api\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"glasshouse-api\"}[5m])), 1)", "refId": "A" }],
+      "targets": [{ "expr": "100 * sum(rate(http_requests_total{job=\"glasshouse-api\",status=\"5xx\"}[5m])) / clamp_min(sum(rate(http_requests_total{job=\"glasshouse-api\"}[5m])), 1)", "refId": "A" }],
       "title": "Error Rate (5xx %)",
       "type": "stat"
     },
@@ -46,7 +46,7 @@
       "id": 4,
       "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
       "pluginVersion": "10.0.0",
-      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"glasshouse-api\"}[5m])) by (le))", "refId": "A" }],
+      "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_highr_seconds_bucket{job=\"glasshouse-api\"}[5m])) by (le))", "refId": "A" }],
       "title": "p95 Latency",
       "type": "stat"
     },
@@ -67,9 +67,9 @@
       "id": 6,
       "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
-        { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"glasshouse-api\"}[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
-        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"glasshouse-api\"}[5m])) by (le))", "legendFormat": "p95", "refId": "B" },
-        { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"glasshouse-api\"}[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
+        { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_highr_seconds_bucket{job=\"glasshouse-api\"}[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_highr_seconds_bucket{job=\"glasshouse-api\"}[5m])) by (le))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_highr_seconds_bucket{job=\"glasshouse-api\"}[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
       ],
       "title": "Latency Percentiles",
       "type": "timeseries"
