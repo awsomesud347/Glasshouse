@@ -1,0 +1,50 @@
+# Observability overlay — optional, host-agnostic.
+#
+# Co-located (default): merge with the app stack so Prometheus scrapes the API
+# over the shared Docker network at api:8000, bypassing the external nginx
+# block on /metrics:
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.observability.yml up -d
+#
+# For local/self-host, swap docker-compose.prod.yml for docker-compose.yml.
+#
+# Separate host: set API_METRICS_TARGET to the API's reachable address and
+# ensure a private network path to its /metrics endpoint exists.
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        sed "s/API_METRICS_TARGET_PLACEHOLDER/${API_METRICS_TARGET:-api:8000}/" \
+          /etc/prometheus/prometheus.template.yml > /tmp/prometheus.yml
+        exec /bin/prometheus --config.file=/tmp/prometheus.yml --storage.tsdb.path=/prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.template.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - vault_network
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - vault_network
+
+volumes:
+  prometheus_data:
+  grafana_data:
