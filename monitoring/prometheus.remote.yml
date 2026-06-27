@@ -1,0 +1,24 @@
+# Remote-scrape Prometheus config for the ON-DEMAND MONITORING INSTANCE.
+#
+# Unlike the co-located config (which scraped api:8000 by Docker service name),
+# this runs on a SEPARATE host and scrapes the app instance's /metrics through
+# nginx over the private VPC network:
+#   - scheme https  : goes through nginx on 443, not the plain API container
+#   - tls skip-verify: the origin cert is for the public hostname, not the
+#                      private IP we scrape; the hop is over the trusted private VPC
+#   - target        : the app instance's PRIVATE IP, injected at container start
+#
+# API_METRICS_TARGET is substituted by the compose entrypoint, e.g. "10.0.1.55:443"
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'glasshouse-api'
+    scheme: https
+    metrics_path: /metrics
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ['API_METRICS_TARGET_PLACEHOLDER']
