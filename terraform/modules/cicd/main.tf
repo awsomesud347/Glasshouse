@@ -72,6 +72,13 @@ resource "aws_iam_role_policy" "github_actions" {
         ]
         Resource = "arn:aws:ecr:us-east-1:111169964335:repository/vault-api"
       },
+      # EC2: look up the app instance ID by tag (describe has no resource scoping).
+      {
+        Sid      = "EC2Describe"
+        Effect   = "Allow"
+        Action   = "ec2:DescribeInstances"
+        Resource = "*"
+      },
       # SSM: send the deploy command to the specific app instance only.
       {
         Sid    = "SSMSendCommand"
