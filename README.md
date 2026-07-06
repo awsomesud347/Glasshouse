@@ -1,44 +1,53 @@
 # Glasshouse
 
-Glasshouse is a zero-knowledge password manager with a production grade, infrastructure-as-code based deployment — built with a personal motivaton to tackle and solve DevSecOps workflows and Secure Coding/SWE challenges. One cloud-agnostic codebase runs identically via `docker compose up` or on the hardened, Terraform-provisioned AWS stack that powers the live instance, with least-privilege IAM and managed secrets.
+A zero-knowledge password manager, built end to end: a browser-side cryptographic core, a fully async API, and a hardened infrastructure-as-code deployment. One cloud-agnostic codebase runs identically via `docker compose up` or on the Terraform-provisioned AWS stack behind the live instance.
 
-This is a portfolio showcase of how to design, code, deploy, and operate a security-critical service — **not an audited product yet.** The live instance is the fastest way to get a feel for the deliberately minimal UI, and it works as a vault for throwaway or alt-account credentials.
+Glasshouse open-sources the **entire** deployment — the application, the infrastructure-as-code, the CI/CD pipeline, and the live reference instance. Almost no self-hostable password manager does this; most open-source the app and keep the operations private. Here the whole path from source to a running production service is public and reproducible.
 
-**Live demo:** https://passmanager.sudarshankaushik.com
-**API:** https://vault-api.sudarshankaushik.com
+Not audited yet — Live Demo is only hosted for throwaway and alt-account credentials, and as a working demonstration of designing, coding, deploying, and operating a security-critical service.
 
-## Why it's built this way
+**Live demo:** https://passmanager.sudarshankaushik.com  ·  **API:** https://vault-api.sudarshankaushik.com
 
-The scope of the product might seem modest, which it intentionally is. The point of the project is first, solving the software problem, and then the security/operational envelope around it. Glasshouse is one of the very few albeit only open source password managers that have been shipped with instant cloneability, and secure self hostability as a priority, which makes it highly appealing to individuals looking for self hostability in password solutions. This was achieved through hardened container images, and hardened deploy pipelines and workflows.
+**Try it in one command:**
 
-Finally, The interesting parts to look out for are the infrastructure-as-code, the least-privilege IAM, the secrets management, the defense-in-depth network design, and the clean separation that lets one codebase be both self-hosted and cloud-deployed.
+```bash
+git clone https://github.com/awsomesud347/Glasshouse.git && cd Glasshouse
+cp backend/.env.example backend/.env      # set PEPPER, JWT_SECRET (openssl rand -hex 32)
+docker compose up
+```
+
+API comes up on `http://localhost:8000`; `curl localhost:8000/health` to confirm. Frontend setup is in [`docs/self-hosting.md`](docs/self-hosting.md). Full self-host config is below.
+
+---
 
 ## How the zero-knowledge model works
 
 The server never sees your master password or any plaintext credential.
 
-1. Your master password is run through **Argon2id** (64 MB memory, 3 iterations) in the browser, using a per-user salt.
-2. The derived key material is split via **HKDF** into two keys:
-   - an **encryption key** that never leaves the browser (non-extractable), used to encrypt your vault with **AES-256-GCM**, and
+1. Your master password runs through **Argon2id** (64 MB, 3 iterations) in the browser, with a per-user salt.
+2. The result is split via **HKDF** into two keys:
+   - an **encryption key** that never leaves the browser (non-extractable), encrypting your vault with **AES-256-GCM**, and
    - an **auth key** sent to the server only to prove identity.
-3. The server never stores the auth key — it stores a **verifier** produced by peppering and hashing the auth key with Argon2 (`argon2-cffi`).
-4. Your vault is stored as a single **encrypted blob** plus an IV and a version number. To the server it is opaque bytes.
+3. The server never stores the auth key — it stores a **verifier**: the auth key peppered and hashed with Argon2 (`argon2-cffi`).
+4. Your vault is one **encrypted blob** plus an IV and a version number. To the server it is opaque bytes.
 
-A consequence stated plainly: if you forget your master password, your vault is unrecoverable by design. There is no reset, because the server has nothing to reset to.
+Forget your master password and the vault is unrecoverable — no reset, because the server has nothing to reset to.
+
+The crypto is implemented from primitives, not handed to a library that hides the decisions. The two-key split is the crux: the key that authenticates and the key that decrypts must be cryptographically unrelated, or the server would hold material related to the decryption key. HKDF with distinct `info` parameters produces two independent keys from one high-entropy Argon2 output. Every such choice — two keys, a fixed HKDF salt, a peppered verifier — is made and defended in [`docs/architecture.md`](docs/architecture.md).
 
 ## Architecture
 
 ```
-Browser (all crypto processed and stored here only in memory.)
+Browser (all crypto; keys in memory only)
    │  HTTPS
    ▼
-Cloudflare  ── DDoS protection, TLS, origin hidden
+Cloudflare  ── DDoS, TLS, origin hidden
    │  HTTPS (origin cert; EC2 security group locked to Cloudflare IP ranges)
    ▼
-nginx (reverse proxy)  ── TLS termination, rate limiting, /metrics blocked externally
+nginx (reverse proxy)  ── TLS termination, rate limiting, /metrics access-controlled
    │  Docker network
    ▼
-FastAPI (API container)  ── reads secrets from env; never published to the host directly
+FastAPI (async API)  ── reads secrets from env; never published to the host
    │  SSL
    ▼
 PostgreSQL
@@ -46,50 +55,83 @@ PostgreSQL
    └─ production: AWS RDS in a private subnet, reachable only from the API security group
 ```
 
-Secrets (pepper, JWT secret, database URL) live in **AWS Secrets Manager** and are fetched via an **EC2 IAM role** scoped to exactly those secret ARNs, then injected as environment variables at deploy time. The application itself is cloud-agnostic and makes no cloud API calls — for a self-hoster, those same values are just environment variables they set.
+Secrets (pepper, JWT secret, database URL) live in **AWS Secrets Manager**, fetched via an **EC2 IAM role** scoped to exactly those secret ARNs, injected as environment variables at deploy time. The application makes no cloud API calls — for a self-hoster, those same values are just environment variables.
 
-See [`docs/architecture.md`](docs/architecture.md) for the full design and decision rationale, and [`THREAT_MODEL.md`](THREAT_MODEL.md) for what this does and does not protect against.
+Full design and rationale: [`docs/architecture.md`](docs/architecture.md). What it protects against and what it doesn't: [`THREAT_MODEL.md`](THREAT_MODEL.md).
+
+## Engineering highlights
+
+- **Zero-knowledge crypto from primitives** — Argon2id, HKDF domain-separated split, AES-256-GCM, non-extractable browser key, peppered Argon2 verifier. A full database compromise yields ciphertext and verifiers that decrypt nothing.
+- **Fully async backend** — FastAPI, async SQLAlchemy, asyncpg, no blocking calls in the request path. A single `t3.micro` sustains 588 req/s on the health path and ~260 req/s on DB-backed reads (see [Load testing](#load-testing--capacity)).
+- **Optimistic concurrency control** — vault writes are version-checked with compare-and-set; concurrent multi-device edits are rejected (`409`) rather than silently clobbered, without the server ever seeing vault structure.
+- **Cloud-agnostic by construction** — one `get_secret()` seam and env-var config, zero cloud SDK calls in application logic. The same image runs on a homelab box or the AWS stack; swapping RDS for a Postgres container is one environment variable.
+- **Keyless, no-SSH CI/CD** — GitHub Actions authenticates to AWS via OIDC (no stored keys) and deploys over Systems Manager (no inbound SSH), gated by secret, dependency, and image scanning.
 
 ## Tech stack
 
-**Application:** Python, FastAPI (async), Pydantic, SQLAlchemy (async), asyncpg, React + Vite, WebCrypto, Argon2id (hash-wasm client-side, argon2-cffi server-side), AES-256-GCM.
+**Application:** Python, FastAPI (async), Pydantic, SQLAlchemy (async), asyncpg, React + Vite, WebCrypto, Argon2id (hash-wasm / argon2-cffi), AES-256-GCM.
 
-**Infrastructure:** Docker, AWS (EC2, RDS, ECR, Secrets Manager, IAM, VPC), Terraform, nginx, Cloudflare, Vercel.
+**Infrastructure & delivery:** Docker, AWS (EC2, RDS, ECR, Secrets Manager, IAM, VPC, SSM), Terraform, nginx, Cloudflare, Vercel, GitHub Actions (OIDC), Prometheus, Grafana, k6.
 
-## Quickstart (self-hosting)
+## CI/CD
 
-The application runs anywhere with Docker. No AWS account or cloud services required — this brings up the API and a PostgreSQL container together.
+Every push to `main` runs a security-gated GitHub Actions pipeline.
 
-```bash
-git clone https://github.com/awsomesud347/Glasshouse.git
-cd Glasshouse
-cp backend/.env.example backend/.env   # then edit the values (see below)
-docker compose up
-```
+**CI:** secret scanning (gitleaks), dependency-vulnerability audit (pip-audit), Docker build, container-image scan (Trivy). A finding blocks the merge.
 
-The API will be available on `http://localhost:8000`. Run the frontend separately (see [`docs/self-hosting.md`](docs/self-hosting.md)).
+**CD:** on green CI, the pipeline authenticates to AWS via **OIDC** (no stored keys), pushes a commit-SHA-tagged image to ECR, and deploys over **Systems Manager** (no inbound SSH, no runner-IP allowlisting), then health-checks the live service. SHA tags make every running container traceable to its commit.
 
-You must supply these environment variables in `backend/.env`:
+OIDC removes long-lived cloud credentials from the pipeline; SSM removes the open SSH port a "store a key, SSH in and pull" pipeline would need. Both cut standing attack surface.
 
-| Variable        | Purpose                                              |
-|-----------------|------------------------------------------------------|
-| `DATABASE_URL`  | PostgreSQL connection string                         |
-| `PEPPER`        | Server-side pepper for hashing the auth-key verifier |
-| `JWT_SECRET`    | Secret for signing session JWTs                      |
-| `ALLOWED_ORIGINS` | Comma-separated list of allowed frontend origins   |
+## Observability
 
-How those variables get populated is deployment-specific: a self-hoster sets them by hand (or via their orchestrator's secret mechanism); the maintained production instance injects them from AWS Secrets Manager. The application is identical in both cases.
+Prometheus metrics (`prometheus-fastapi-instrumentator`) plus custom domain counters — login success/failure, registrations, vault operations, version conflicts — at an access-controlled `/metrics`. Grafana dashboards, provisioned as code, cover request rate, error rate, latency percentiles, and the domain metrics.
 
-> **Note on HTTPS:** the browser's WebCrypto API requires a secure context. `localhost` is treated as secure for development, but any real self-hosted deployment must serve the frontend over HTTPS. See the self-hosting guide.
+Monitoring runs on a **dedicated on-demand instance** with its own standalone Terraform config, scraping over the private VPC and torn down when idle — decoupled from the workload it watches, at near-zero cost.
+
+![Grafana overview dashboard under load](docs/images/grafana-overview-load.png)
+
+## Load testing & capacity
+
+Load-tested with **k6** from a dedicated in-region EC2 generator, hitting the origin directly (Cloudflare bypassed) to measure true origin capacity. Server-side latency from Prometheus; instance and DB metrics from CloudWatch.
+
+**Single `t3.micro` (2 vCPU, 1 GB):**
+
+| Workload | Sustained | Errors | Server-side latency | Limiting factor |
+|----------|-----------|--------|--------------------|-----------------|
+| `/health` (no DB) | **588 req/s** | 0% | ~1.3 ms median | Load generator, not the app (app CPU ~17%) |
+| Vault reads (DB-backed) | **~260 req/s** | onset of connection-shedding beyond | ~5 ms median query | Single-worker web tier |
+
+![k6 health tier results](docs/images/loadtest-health.png)
+![k6 read tier results](docs/images/loadtest-read.png)
+
+The health path barely loaded the box — 588 req/s at ~17% CPU, ceiling set by the generator, not the server. On DB-backed reads, throughput held near 260 req/s before the origin shed connections — with the **database near-idle** (peak ~8 of ~80 connections) and query latency at ~5 ms. The bottleneck is web-tier connection handling — a single nginx worker and a single Uvicorn worker — not compute and not the database.
+
+That is efficient (sub-10 ms server-side latency, an idle DB, hundreds of req/s from one small instance) and deliberately un-scaled. The read ceiling is a configuration limit, not an architectural wall: `worker_processes auto` and multiple Uvicorn workers raise it on the same instance, and the stateless API scales horizontally behind a load balancer after that. For its scope it handles thousands of concurrent users at realistic request rates, and the next tier is a config change, not a rewrite.
+
+*(These figures characterize this instance size — not a benchmark against other products, whose numbers ride on different hardware and workloads.)*
+
+## Self-hosting configuration
+
+`docker compose up` (above) brings up the API and a Postgres container. Set these in `backend/.env`:
+
+| Variable          | Purpose                                              |
+|-------------------|------------------------------------------------------|
+| `DATABASE_URL`    | PostgreSQL connection string (compose default works) |
+| `PEPPER`          | Server-side pepper for the auth-key verifier         |
+| `JWT_SECRET`      | Secret for signing session JWTs                      |
+| `ALLOWED_ORIGINS` | Comma-separated allowed frontend origins             |
+
+Self-hosters set these by hand; the production instance injects them from AWS Secrets Manager. Same application either way. Full guide: [`docs/self-hosting.md`](docs/self-hosting.md).
+
+> **HTTPS required:** WebCrypto needs a secure context. `localhost` counts for development, but any networked deployment must serve frontend **and** API over HTTPS or key derivation won't run.
 
 ## Deployment targets
 
-This one codebase has two documented deployment targets:
+- **Run anywhere (Docker Compose):** API + containerized Postgres, no cloud dependency — [`docs/self-hosting.md`](docs/self-hosting.md).
+- **AWS reference deployment:** the live instance — Terraform, managed RDS, Secrets Manager, Cloudflare, CI/CD, observability — [`docs/deployment.md`](docs/deployment.md).
 
-- **Run anywhere (Docker Compose):** API plus a containerized Postgres, no cloud dependency. Covered in [`docs/self-hosting.md`](docs/self-hosting.md).
-- **AWS reference deployment:** the maintained live instance — Terraform-provisioned, managed RDS, Secrets Manager, Cloudflare. Covered in [`docs/deployment.md`](docs/deployment.md).
-
-The only difference between them is where the database and secrets come from — controlled entirely by environment variables. The production instance swaps the Postgres container for managed RDS by changing `DATABASE_URL`; the application code does not change.
+The only difference is where the database and secrets come from, controlled entirely by environment variables. Production swaps the Postgres container for RDS by changing `DATABASE_URL`; the application code does not change.
 
 ## API
 
@@ -105,34 +147,22 @@ The only difference between them is where the database and secrets come from —
 | DELETE | `/vault/account`          | Delete the account and all stored data           |
 | GET    | `/health`                 | Health check                                      |
 
-Vault writes use **optimistic concurrency control**: the client sends the version it edited, and the server rejects the write with `409 Conflict` if its version has moved on. The system is conflict-*detecting*, not conflict-*merging* — see the threat model for the multi-device implications.
+## Shipped / next
 
----
+**Shipped:** cloud-agnostic application; client-side zero-knowledge crypto; Terraform AWS + Vercel reference deployment (least-privilege IAM, Secrets Manager); security-gated CI/CD (OIDC, SSM); observability (Prometheus + Grafana as code, decoupled on-demand monitoring).
 
-## What this is (and isn't)
-
-**Today:**
-- A cloud-agnostic application — the backend is a container reading all configuration from environment variables, so it runs anywhere a container can: any VPS, bare-metal box, homelab, or cloud VM.
-- A secure AWS + Vercel reference deployment, reproducible from code: Cloudflare → nginx → containerized API → private-subnet RDS, provisioned entirely through Terraform with least-privilege IAM and AWS Secrets Manager.
-- Genuine zero-knowledge cryptography: all key derivation and encryption happen client-side in the browser. The server only ever stores an opaque encrypted blob.
-
-**Planned / in progress:**
-- A CI/CD pipeline (GitHub Actions) with security gates — dependency scanning, container image scanning, IaC scanning — before any deploy.
-- Observability: Prometheus metrics and a public, read-only Grafana dashboard exposing latency and uptime for the live instance.
-- First-class Terraform provisioning for additional cloud providers, and a documented, smooth self-hosting path for bare-metal and homelab setups.
-
-The cloud-agnostic core — secrets and storage behind clean seams, no cloud SDK calls in the application logic — is what makes adding those deployment targets a provisioning-layer change rather than an application rewrite.
+**Next:** MFA (interacts non-trivially with the zero-knowledge login flow — scoped, not half-built); first-class Terraform for other clouds and a bare-metal path; a public read-only Grafana dashboard; Terraform remote state (S3 + locking) so the pipeline can manage infrastructure, not just deploy the app.
 
 ## Known limitations
 
-These are deliberate scope decisions, documented rather than hidden. Each is covered in detail in [`THREAT_MODEL.md`](THREAT_MODEL.md).
+Deliberate scope decisions, documented not hidden — concerning the security and operational posture as much as the code. Detail in [`THREAT_MODEL.md`](THREAT_MODEL.md).
 
-- **No MFA yet.** MFA interacts non-trivially with the zero-knowledge login flow; it is scoped to future work rather than half-implemented.
-- **No third-party security audit.**
-- **Single-blob vault, conflict-detecting not merging.** Concurrent edits from two devices are detected (409) but not merged.
-- **In-memory rate limiting.** Resets on container restart and is not shared across instances. A production fix is a shared (e.g. Redis-backed) limiter.
-- **Deploy-time secret injection.** Secrets are injected as environment variables at deploy time rather than fetched at runtime. Runtime fetch with caching is noted as an enhancement.
-- **Free-tier backup retention.** Automated RDS backups are enabled but retention is constrained by the account's free-tier plan; production would extend this.
+- **No MFA yet** — interacts non-trivially with the zero-knowledge login flow; scoped rather than half-implemented.
+- **No third-party audit.**
+- **Single-blob vault, conflict-detecting not merging** — concurrent two-device edits are detected (409), not merged; a direct consequence of the server not seeing entry structure.
+- **In-memory rate limiting** — resets on restart, not shared across instances; production fix is a shared (Redis-backed) limiter.
+- **Deploy-time secret injection** — secrets enter the process environment at deploy rather than runtime fetch; caching runtime fetch is noted as an enhancement.
+- **Free-tier backup retention** — automated RDS backups on; retention constrained by the account plan.
 
 ## License
 

@@ -17,11 +17,8 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql+asyncpg://admin:localdev@db/vaultdb
-      PEPPER: localdevpepperchangethisinprod
-      JWT_SECRET: localdevjwtsecretchangethisinprod
-      ENV: development
+    env_file:
+      - ./backend/.env
     depends_on:
       db:
         condition: service_healthy
