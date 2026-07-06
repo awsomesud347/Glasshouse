@@ -1,0 +1,100 @@
+name: CD
+
+# Runs after the CI workflow completes successfully on main.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Build, Push, Deploy
+    runs-on: ubuntu-latest
+    # Only deploy if CI actually passed.
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    permissions:
+      id-token: write   # required for OIDC
+      contents: read
+
+    env:
+      AWS_REGION: us-east-1
+      ECR_REGISTRY: 111169964335.dkr.ecr.us-east-1.amazonaws.com
+      ECR_REPO: vault-api
+      INSTANCE_APP_DIR: /home/ec2-user/PasswordManager
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+      - name: Build and push image (SHA-tagged)
+        id: build
+        run: |
+          SHA_TAG="${GITHUB_SHA::12}"
+          IMAGE="$ECR_REGISTRY/$ECR_REPO"
+          docker build -t "$IMAGE:$SHA_TAG" ./backend
+          docker push "$IMAGE:$SHA_TAG"
+          echo "sha_tag=$SHA_TAG" >> "$GITHUB_OUTPUT"
+          echo "Pushed $IMAGE:$SHA_TAG"
+
+      - name: Deploy via SSM
+        run: |
+          SHA_TAG="${{ steps.build.outputs.sha_tag }}"
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=vault-ec2" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].InstanceId" --output text)
+          echo "Deploying $SHA_TAG to $INSTANCE_ID"
+
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Glasshouse deploy $SHA_TAG" \
+            --parameters commands="[
+              \"set -e\",
+              \"cd $INSTANCE_APP_DIR\",
+              \"aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY\",
+              \"echo IMAGE_TAG=$SHA_TAG > .env.deploy\",
+              \"docker compose --env-file .env.deploy -f docker-compose.prod.yml pull api\",
+              \"docker compose --env-file .env.deploy -f docker-compose.prod.yml up -d api\",
+              \"docker image prune -f\"
+            ]" \
+            --query "Command.CommandId" --output text)
+          echo "SSM command: $CMD_ID"
+
+          aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" || true
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query "Status" --output text)
+          echo "Deploy status: $STATUS"
+          echo "--- stdout ---"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query "StandardOutputContent" --output text
+          if [ "$STATUS" != "Success" ]; then
+            echo "--- stderr ---"
+            aws ssm get-command-invocation \
+              --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+              --query "StandardErrorContent" --output text
+            exit 1
+          fi
+
+      - name: Post-deploy health check
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS https://vault-api.sudarshankaushik.com/health; then
+              echo "Deploy verified healthy"; exit 0
+            fi
+            echo "waiting for health ($i)..."; sleep 5
+          done
+          echo "Post-deploy health check failed"; exit 1

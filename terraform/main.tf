@@ -49,3 +49,7 @@ module "compute" {
   db_url_arn       = module.secrets.db_url_arn
   key_name         = var.key_name
 }
+
+module "cicd" {
+  source = "./modules/cicd"
+}

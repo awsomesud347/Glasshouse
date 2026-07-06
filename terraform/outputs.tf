@@ -7,3 +7,6 @@ output "rds_endpoint" {
   description = "RDS endpoint — stored in Secrets Manager"
   value       = module.database.rds_endpoint
 }
+output "github_actions_role_arn" {
+  value = module.cicd.github_actions_role_arn
+}

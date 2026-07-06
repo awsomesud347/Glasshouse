@@ -28,8 +28,8 @@ The application is identical to the production deployment. The only differences 
 Clone and configure:
 
 ```bash
-git clone https://github.com/awsomesud347/PasswordManager.git
-cd PasswordManager
+git clone https://github.com/awsomesud347/Glasshouse.git
+cd Glasshouse
 cp backend/.env.example backend/.env
 ```
 

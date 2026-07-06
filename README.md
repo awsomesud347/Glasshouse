@@ -9,7 +9,9 @@ This is a portfolio showcase of how to design, code, deploy, and operate a secur
 
 ## Why it's built this way
 
-The product itself is intentionally modest. The point of the project is the **operational envelope around it**: a zero-knowledge password manager is an unforgiving thing to deploy and operate safely, which makes it a good workload for demonstrating secure cloud operations. The interesting parts are the infrastructure-as-code, the least-privilege IAM, the secrets management, the defense-in-depth network design, and the clean separation that lets one codebase be both self-hosted and cloud-deployed.
+The scope of the product might seem modest, which it intentionally is. The point of the project is first, solving the software problem, and then the security/operational envelope around it. Glasshouse is one of the very few albeit only open source password managers that have been shipped with instant cloneability, and secure self hostability as a priority, which makes it highly appealing to individuals looking for self hostability in password solutions. This was achieved through hardened container images, and hardened deploy pipelines and workflows.
+
+Finally, The interesting parts to look out for are the infrastructure-as-code, the least-privilege IAM, the secrets management, the defense-in-depth network design, and the clean separation that lets one codebase be both self-hosted and cloud-deployed.
 
 ## How the zero-knowledge model works
 
@@ -59,8 +61,8 @@ See [`docs/architecture.md`](docs/architecture.md) for the full design and decis
 The application runs anywhere with Docker. No AWS account or cloud services required — this brings up the API and a PostgreSQL container together.
 
 ```bash
-git clone https://github.com/awsomesud347/PasswordManager.git
-cd PasswordManager
+git clone https://github.com/awsomesud347/Glasshouse.git
+cd Glasshouse
 cp backend/.env.example backend/.env   # then edit the values (see below)
 docker compose up
 ```

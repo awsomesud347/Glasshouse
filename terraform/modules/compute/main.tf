@@ -86,6 +86,11 @@ resource "aws_iam_instance_profile" "ec2" {
   role = aws_iam_role.ec2.name
 }
 
+resource "aws_iam_role_policy_attachment" "ec2_ssm" {
+  role       = aws_iam_role.ec2.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 # EC2 instance
 resource "aws_instance" "main" {
   ami                    = "ami-0c02fb55956c7d316"  # Amazon Linux 2 us-east-1
