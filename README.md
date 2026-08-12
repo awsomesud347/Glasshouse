@@ -1,10 +1,10 @@
 # Glasshouse
 
-A zero-knowledge password manager, built end to end: a browser-side cryptographic core, a fully async API, and a hardened infrastructure-as-code deployment. One cloud-agnostic codebase runs identically via `docker compose up` or on the Terraform-provisioned AWS stack behind the live instance.
+Glasshouse is an instantly cloneable zero knowledge password manager. It features a browser side cryptographic core, a fully async backend API, and a hardened IaC based deployment. The backend consists of a single cloud agnostic image that runs identically via `docker compose up` or on the Terraform provisioned AWS stack, similar to the one being used in the live demo deployment.
 
-Glasshouse open-sources the **entire** deployment — the application, the infrastructure-as-code, the CI/CD pipeline, and the live reference instance. Almost no self-hostable password manager does this; most open-source the app and keep the operations private. Here the whole path from source to a running production service is public and reproducible.
+Glasshouse is one of the few self hostable password managers out there which open sources the entire deployment, including the application, IaC, CI/CD pipeline, and the live reference instance. The whole path to running your own production service is public and reproducible.
 
-Not audited yet — Live Demo is only hosted for throwaway and alt-account credentials, and as a working demonstration of designing, coding, deploying, and operating a security-critical service.
+Note: The Live Demo is only hosted for throwaway and alt account credentials, and as a working demo for designing, coding, deploying, and operating a security critical service, and the project is not audited yet.
 
 **Live demo:** https://passmanager.sudarshankaushik.com  ·  **API:** https://vault-api.sudarshankaushik.com
 
